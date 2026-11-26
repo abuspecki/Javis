@@ -1,0 +1,9 @@
+{
+  "name": "jarvis-backend",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Model-agnostic AI backend for the J.A.R.V.I.S. interface",
+  "scripts": { "start": "node index.mjs", "dev": "node --watch index.mjs" },
+  "dependencies": { "@anthropic-ai/sdk": "latest" }
+}
