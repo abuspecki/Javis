@@ -1,4 +1,5 @@
-import { Bookmark, Clock, Download, ExternalLink, Globe, Search, Trash2, X } from 'lucide-react';
+import { Bookmark, Clock, Download, ExternalLink, Globe, Search, Sparkles, Trash2, X } from 'lucide-react';
+import { useCommands } from '../../state/commands';
 import { useEffect, useState } from 'react';
 
 /** Favicon with graceful fallback when the favicon service is unreachable. */
@@ -138,22 +139,39 @@ function HistoryPage() {
 
 function BookmarksPage() {
   const b = useBrowser();
+  const { skill } = useCommands();
+  const groups = new Map<string, typeof b.bookmarks>();
+  for (const bm of b.bookmarks) {
+    const c = bm.category ?? 'Unsortiert';
+    groups.set(c, [...(groups.get(c) ?? []), bm]);
+  }
+  const ordered = [...groups.entries()].sort(([a], [z]) => (a === 'Unsortiert' ? 1 : z === 'Unsortiert' ? -1 : a.localeCompare(z, 'de')));
   return (
     <div className="mx-auto max-w-2xl">
-      <h3 className="hud-title flex items-center gap-2"><Bookmark className="h-4 w-4 text-cyan-hud" /> Lesezeichen</h3>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {!b.bookmarks.length && <p className="text-sm text-ice/40">Keine Lesezeichen. Nutzen Sie den Stern in der Adressleiste.</p>}
-        {b.bookmarks.map((bm) => (
-          <div key={bm.id} className="flex items-center gap-2 rounded-xl border border-cyan-hud/10 bg-cyan-hud/[0.03] p-2.5">
-            <Favicon url={bm.url} className="h-4 w-4" />
-            <button onClick={() => b.navigate(bm.url)} className="min-w-0 flex-1 text-left">
-              <div className="truncate text-xs text-ice">{bm.title}</div>
-              <div className="truncate font-mono text-[10px] text-ice/35">{hostOf(bm.url)}</div>
-            </button>
-            <button onClick={() => b.removeBookmark(bm.id)} className="rounded p-1 text-ice/40 hover:text-crit" aria-label={`${bm.title} entfernen`}><X className="h-3 w-3" /></button>
-          </div>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="hud-title flex items-center gap-2"><Bookmark className="h-4 w-4 text-cyan-hud" /> Lesezeichen</h3>
+        <button className="hud-btn" onClick={() => skill('bookmarks')} disabled={!b.bookmarks.length} title="Lesezeichen automatisch in Kategorien ordnen">
+          <Sparkles className="h-3 w-3" /> Intelligent sortieren
+        </button>
       </div>
+      {!b.bookmarks.length && <p className="mt-3 text-sm text-ice/40">Keine Lesezeichen. Nutzen Sie den Stern in der Adressleiste.</p>}
+      {ordered.map(([cat, list]) => (
+        <section key={cat} className="mt-4">
+          {(groups.size > 1 || cat !== 'Unsortiert') && <h4 className="hud-label mb-2">{cat} · {list.length}</h4>}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {list.map((bm) => (
+              <div key={bm.id} className="flex items-center gap-2 rounded-xl border border-cyan-hud/10 bg-cyan-hud/[0.03] p-2.5">
+                <Favicon url={bm.url} className="h-4 w-4" />
+                <button onClick={() => b.navigate(bm.url)} className="min-w-0 flex-1 text-left">
+                  <div className="truncate text-xs text-ice">{bm.title}</div>
+                  <div className="truncate font-mono text-[10px] text-ice/35">{hostOf(bm.url)}</div>
+                </button>
+                <button onClick={() => b.removeBookmark(bm.id)} className="rounded p-1 text-ice/40 hover:text-crit" aria-label={`${bm.title} entfernen`}><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

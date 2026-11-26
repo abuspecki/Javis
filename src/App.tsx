@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { JarvisAction, JarvisContext, ViewMode } from './types';
+import type { JarvisAction, JarvisContext, SkillId, ViewMode } from './types';
 import { SettingsProvider, useSettings } from './state/settings';
 import { WorkspaceProvider, useWorkspace } from './state/workspace';
 import { BrowserProvider, currentUrl, useBrowser } from './state/browser';
@@ -16,7 +16,19 @@ import { SystemMonitor } from './components/system/SystemMonitor';
 import { InfoPanel } from './components/info/InfoPanel';
 import { SettingsDialog } from './components/settings/SettingsDialog';
 import { Toasts, type Toast } from './components/ui/Toasts';
-import { cx, uid } from './lib/util';
+import { cx, fmtTime, germanGreeting, isSameDay, uid } from './lib/util';
+import { CommandsContext, type Commands } from './state/commands';
+import { runSkill, SKILL_LABELS, type SkillEnv, type SkillInput, type SkillResult } from './services/skills';
+import { downloadText, eventsToIcs } from './services/data/ics';
+
+const MAX_FILE = 10 * 1024 * 1024;
+const readAsBase64 = (f: File) => new Promise<string>((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result).split(',')[1] ?? '');
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(f);
+});
+const isTextFile = (f: File) => /^text\/|json|xml|csv|markdown|javascript|typescript/.test(f.type) || /\.(txt|md|csv|json|log|xml|html?|js|ts|tsx|py|ya?ml|ini|conf)$/i.test(f.name);
 
 export default function App() {
   return (
@@ -89,6 +101,9 @@ function Shell() {
         case 'addReminder': w.addReminder(a.text, a.at ?? Date.now() + 30 * 60e3); w.toggleModule('reminders', true); break;
         case 'openSettings': setSettingsOpen(true); break;
         case 'clearChat': break; // handled inside the assistant
+        case 'skill': skillRef.current(a.skill, a.arg, false); break;
+        case 'routine': routineRef.current(a.name); break;
+        case 'exportCalendar': downloadText('jarvis-kalender.ics', eventsToIcs(w.events)); break;
       }
     }
   }, [setView]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -111,6 +126,91 @@ function Shell() {
   }, [settings.lang, settings.userTitle]);
 
   const assistant = useAssistant({ execute, getContext });
+  const assistantRef = useRef(assistant); assistantRef.current = assistant;
+
+  const env = useCallback((): SkillEnv => ({
+    useBackend: settings.provider === 'backend', backendUrl: settings.backendUrl, sender: settings.userName,
+  }), [settings.provider, settings.backendUrl, settings.userName]);
+
+  /** Applies structured skill results to the workspace (categories, sub-tasks). */
+  const applyResult = useCallback((r: SkillResult | null) => {
+    if (!r?.data) return;
+    if (r.data.kind === 'categories') { brRef.current.setBookmarkCategories(r.data.map); brRef.current.navigate('jarvis://bookmarks'); ensureBrowserVisible(); }
+    if (r.data.kind === 'steps') { [...r.data.steps].reverse().forEach((t) => wsRef.current.addTask(t)); wsRef.current.toggleModule('tasks', true); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runSkillAction = useCallback((skill: SkillId, arg: string | undefined, logUser: boolean) => {
+    const a = assistantRef.current, b = brRef.current;
+    const url = currentUrl(b.active);
+    let input: SkillInput;
+    let label = SKILL_LABELS[skill];
+    switch (skill) {
+      case 'summarize': case 'analyze': case 'translate':
+        if (url.startsWith('jarvis://')) { a.announce('Bitte öffnen Sie zuerst eine Webseite im Browser-Panel, dann kann ich sie lesen.'); return; }
+        input = skill === 'translate' ? { skill, url, target: arg || 'Deutsch' } : { skill, url };
+        label = `${label}: ${b.active.title}${skill === 'translate' ? ` → ${arg || 'Deutsch'}` : ''}`;
+        break;
+      case 'research':
+        if (!arg?.trim()) { a.announce('Wozu soll ich recherchieren? Schreiben Sie das Thema ins Eingabefeld und drücken Sie erneut auf Recherche.'); return; }
+        input = { skill, query: arg }; label = `Recherche: ${arg}`; break;
+      case 'email':
+        if (!arg?.trim()) { a.announce('Worum soll es in der E-Mail gehen? Beschreiben Sie das Anliegen im Eingabefeld, zum Beispiel: „an pepper@stark.com wegen Termin am Freitag“.'); return; }
+        input = { skill, request: arg }; label = `E-Mail: ${arg}`; break;
+      case 'bookmarks':
+        if (!b.bookmarks.length) { a.announce('Es gibt noch keine Lesezeichen zum Sortieren.'); return; }
+        input = { skill, bookmarks: b.bookmarks.map(({ id, title, url }) => ({ id, title, url })) }; break;
+      case 'breakdown':
+        if (!arg?.trim()) { a.announce('Welche Aufgabe soll ich zerlegen?'); return; }
+        input = { skill, task: arg }; label = `Aufgabe zerlegen: ${arg}`; break;
+      default: return;
+    }
+    a.runSkill(label, skill, (signal) => runSkill(input, { ...env(), signal }), { logUser }).then(applyResult);
+  }, [env, applyResult]);
+  const skillRef = useRef(runSkillAction); skillRef.current = runSkillAction;
+
+  const analyzeFile = useCallback(async (file: File) => {
+    const a = assistantRef.current;
+    if (file.size > MAX_FILE) { a.announce(`Die Datei ist mit ${(file.size / 1e6).toFixed(1)} MB zu groß. Maximal 10 MB.`); return; }
+    const base = { name: file.name, size: file.size, mediaType: file.type };
+    a.runSkill(`Datei analysieren: ${file.name}`, 'file', async (signal) => {
+      const input: SkillInput = isTextFile(file) ? { skill: 'file', ...base, text: (await file.text()).slice(0, 400_000) } : { skill: 'file', ...base, data: await readAsBase64(file) };
+      return runSkill(input, { ...env(), signal });
+    }, { logUser: true });
+  }, [env]);
+
+  /** Builds a spoken status briefing from live workspace data. */
+  const briefing = useCallback(() => {
+    const w = wsRef.current, now = Date.now();
+    const today = w.events.filter((e) => isSameDay(e.start, now) && e.end > now).sort((x, y) => x.start - y.start);
+    const open = w.tasks.filter((t) => !t.done);
+    const rem = w.reminders.filter((r) => !r.done && r.at > now && isSameDay(r.at, now));
+    return [
+      `${germanGreeting()}, ${settings.userTitle}.`,
+      w.weather ? `In ${w.weather.city} sind es ${w.weather.temperature} Grad, ${w.weather.description.toLowerCase()}.` : '',
+      today.length ? `Heute stehen noch ${today.length} Termin${today.length > 1 ? 'e' : ''} an, als nächstes ${today[0].title} um ${fmtTime(today[0].start)}.` : 'Für heute stehen keine weiteren Termine an.',
+      open.length ? `${open.length} Aufgabe${open.length > 1 ? 'n sind' : ' ist'} offen.` : 'Alle Aufgaben sind erledigt.',
+      rem.length ? `Und ich erinnere Sie heute noch an: ${rem.map((r) => r.text).join(', ')}.` : '',
+    ].filter(Boolean).join(' ');
+  }, [settings.userTitle]);
+
+  const runRoutine = useCallback((name: string) => {
+    const a = assistantRef.current, b = brRef.current;
+    const n = name.toLowerCase();
+    const r = settings.routines.find((x) => x.name.toLowerCase() === n) ??
+      settings.routines.find((x) => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase().replace(/routine$/, '')));
+    if (!r) {
+      if (/fokus|focus/.test(n)) { setView('focus'); return; }
+      a.announce(`Die Routine „${name}“ kenne ich nicht. Verfügbar: ${settings.routines.map((x) => x.name).join(', ') || 'keine'}. Neue Routinen legen Sie in den Einstellungen an.`);
+      return;
+    }
+    r.urls.forEach((u) => b.openTab(u));
+    if (r.urls.length) ensureBrowserVisible();
+    const opened = r.urls.length ? `${r.urls.length} Seite${r.urls.length > 1 ? 'n' : ''} geöffnet. ` : '';
+    a.announce(`${r.name} gestartet. ${opened}${r.briefing ? briefing() : ''}`.trim(), 'routine');
+  }, [settings.routines, briefing, setView]); // eslint-disable-line react-hooks/exhaustive-deps
+  const routineRef = useRef(runRoutine); routineRef.current = runRoutine;
+
+  const commands: Commands = { execute, skill: (sk, arg) => runSkillAction(sk, arg, true), analyzeFile };
 
   // Reminder scheduler
   const notified = useRef(new Set<string>());
@@ -143,6 +243,7 @@ function Shell() {
   const reduced = settings.reducedMotion;
 
   return (
+    <CommandsContext.Provider value={commands}>
     <div className={cx('hud-backdrop flex h-full flex-col', settings.scanlines && 'scanlines', settings.glitch && !reduced && 'glitch-on', reduced && 'reduced-motion')}>
       {settings.scanlines && !reduced && <div className="scan-sweep" aria-hidden />}
       <a href="#chat-input" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2">Zum Chat springen</a>
@@ -205,5 +306,6 @@ function Shell() {
       <AnimatePresence>{settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}</AnimatePresence>
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
+    </CommandsContext.Provider>
   );
 }

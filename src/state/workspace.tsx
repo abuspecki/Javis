@@ -27,6 +27,7 @@ interface Workspace {
   updateNote: (id: string, text: string) => void;
   removeNote: (id: string) => void;
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
+  importEvents: (e: Omit<CalendarEvent, 'id'>[]) => number;
   removeEvent: (id: string) => void;
 }
 
@@ -79,6 +80,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     updateNote: (id, text) => setNotes((n) => n.map((x) => (x.id === id ? { ...x, text, updatedAt: Date.now() } : x))),
     removeNote: (id) => setNotes((n) => n.filter((x) => x.id !== id)),
     addEvent: (e) => setEvents((ev) => [...ev, { ...e, id: uid() }]),
+    importEvents: (list) => {
+      // de-duplicate on title + start so re-importing the same file is harmless
+      const key = (e: Omit<CalendarEvent, 'id'>) => `${e.title}|${e.start}`;
+      const existing = new Set(events.map(key));
+      const fresh = list.filter((e) => !existing.has(key(e)));
+      setEvents((ev) => [...ev, ...fresh.map((e) => ({ ...e, id: uid() }))]);
+      return fresh.length;
+    },
     removeEvent: (id) => setEvents((ev) => ev.filter((x) => x.id !== id)),
   }), [events, tasks, reminders, notes, news, weather, weatherError, openModules, toggleModule, setTasks, setReminders, setNotes, setEvents]);
 

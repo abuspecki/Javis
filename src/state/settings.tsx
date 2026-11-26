@@ -1,9 +1,12 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { usePersistentState } from '../hooks/usePersistentState';
 import type { ProviderId } from '../services/ai';
+import type { Routine } from '../types';
 
 export interface Settings {
   userTitle: string;
+  /** Used as sender in e-mail drafts. */
+  userName: string;
   lang: 'de-DE' | 'en-US' | 'en-GB';
   tts: boolean;
   voiceURI: string;
@@ -16,10 +19,13 @@ export interface Settings {
   scanlines: boolean;
   glitch: boolean;
   reducedMotion: boolean;
+  /** Automated browser routines, started by voice („Starte Morgenroutine“). */
+  routines: Routine[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   userTitle: 'Sir',
+  userName: 'Tony Stark',
   lang: 'de-DE',
   tts: true,
   voiceURI: '',
@@ -32,6 +38,11 @@ export const DEFAULT_SETTINGS: Settings = {
   scanlines: true,
   glitch: true,
   reducedMotion: false,
+  routines: [
+    { id: 'morning', name: 'Morgenroutine', urls: ['https://www.tagesschau.de', 'https://de.wikipedia.org/wiki/Wikipedia:Hauptseite'], briefing: true },
+    { id: 'work', name: 'Arbeitsbeginn', urls: ['https://mail.google.com', 'https://calendar.google.com', 'https://github.com'], briefing: true },
+    { id: 'evening', name: 'Feierabend', urls: [], briefing: true },
+  ],
 };
 
 interface Ctx { settings: Settings; update: (patch: Partial<Settings>) => void; reset: () => void }

@@ -8,6 +8,7 @@ import { useSettings } from '../state/settings';
 import { usePersistentState } from './usePersistentState';
 import { useAudioLevel } from './useAudioLevel';
 import { germanGreeting, uid } from '../lib/util';
+import type { SkillResult } from '../services/skills';
 
 const MIC_ERRORS: Record<string, string> = {
   'not-allowed': 'Mikrofonzugriff wurde verweigert. Bitte erlauben Sie den Zugriff in den Browser-Einstellungen.',
@@ -77,8 +78,11 @@ export function useAssistant(opts: { execute: (a: JarvisAction[]) => void; getCo
       }
       optsRef.current.execute(intent.actions);
       if (!intent.passthrough) {
-        push({ role: 'assistant', content: intent.reply, source: 'command' });
-        say(intent.reply);
+        // Skills/routines report back themselves; plain commands confirm here.
+        if (intent.reply) {
+          push({ role: 'assistant', content: intent.reply, source: 'command' });
+          say(intent.reply);
+        }
         return;
       }
     }
@@ -176,13 +180,47 @@ export function useAssistant(opts: { execute: (a: JarvisAction[]) => void; getCo
     return () => { stopped = true; rec.stop(); wakeRef.current = null; };
   }, [settings.wakeWord, settings.lang, listening]);
 
+  /** Speak + log a message that JARVIS initiates himself (routines, reminders). */
+  const announce = useCallback((text: string, source = 'jarvis') => {
+    push({ role: 'assistant', content: text, source });
+    say(text);
+  }, [push, say]);
+
+  /**
+   * Runs an AI skill with the same UX as a chat turn: thinking state, cancellable,
+   * result (with sources / structured data) logged and the first sentences spoken.
+   */
+  const runSkill = useCallback(async (label: string, skill: string, fn: (signal: AbortSignal) => Promise<SkillResult>, opts?: { logUser?: boolean }) => {
+    if (opts?.logUser) push({ role: 'user', content: label });
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    stopSpeaking();
+    setLastError(null);
+    setState('thinking');
+    try {
+      const r = await fn(ac.signal);
+      const meta = r.data?.kind === 'email' ? r.data : undefined;
+      push({ role: 'assistant', content: r.text, source: `skill:${skill}`, sources: r.sources?.slice(0, 8), meta });
+      const spoken = r.text.replace(/•/g, '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ').slice(0, 260);
+      say(r.text.length > spoken.length + 20 ? `${spoken} Die Details stehen im Chat.` : spoken);
+      return r;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') { setState('idle'); return null; }
+      const msg = `${label} fehlgeschlagen: ${(e as Error).message}`;
+      push({ role: 'assistant', content: msg, source: `skill:${skill}`, error: true });
+      flashError(msg);
+      return null;
+    }
+  }, [push, say, flashError]);
+
   const clear = useCallback(() => { cancel(); setMessages([welcome(settings.userTitle)]); }, [cancel, setMessages, settings.userTitle]);
   const removeMessage = useCallback((id: string) => setMessages((m) => m.filter((x) => x.id !== id)), [setMessages]);
 
   return {
     messages, state, interim, listening, lastError, provider,
     level: audio.level, spectrum: audio.spectrum,
-    send, cancel, clear, removeMessage, toggleListening, startListening, stopListening, say,
+    send, cancel, clear, removeMessage, toggleListening, startListening, stopListening, say, announce, runSkill,
   };
 }
 

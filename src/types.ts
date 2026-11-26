@@ -12,7 +12,15 @@ export interface ChatMessage {
   /** Source of the reply (provider id or "command") */
   source?: string;
   error?: boolean;
+  /** Links the answer is based on (web research, summarised page). */
+  sources?: { url: string; title: string }[];
+  /** Structured payload, e.g. an e-mail draft that can be opened in the mail app. */
+  meta?: { kind: 'email'; to: string; subject: string; body: string };
 }
+
+export type SkillId = 'summarize' | 'translate' | 'analyze' | 'research' | 'email' | 'bookmarks' | 'breakdown' | 'file';
+
+export interface Routine { id: string; name: string; urls: string[]; briefing: boolean }
 
 /** Actions JARVIS can execute in the UI. Both the local intent parser and remote AI
  *  backends emit these, so automation works identically regardless of the model. */
@@ -31,7 +39,11 @@ export type JarvisAction =
   | { type: 'addReminder'; text: string; at?: number }
   | { type: 'addNote'; text: string }
   | { type: 'clearChat' }
-  | { type: 'openSettings' };
+  | { type: 'openSettings' }
+  /** Run an AI skill; `arg` is the free-text parameter (query, target language, task, request). */
+  | { type: 'skill'; skill: SkillId; arg?: string }
+  | { type: 'routine'; name: string }
+  | { type: 'exportCalendar' };
 
 export type ViewMode = 'command' | 'focus' | 'browser';
 

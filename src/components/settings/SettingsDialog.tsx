@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
-import { Bot, Eye, Globe, MapPin, Mic, RotateCcw, User, X, type LucideIcon } from 'lucide-react';
+import { Bot, Eye, Globe, MapPin, Mic, Plus, RotateCcw, Trash2, User, Workflow, X, type LucideIcon } from 'lucide-react';
+import { uid } from '../../lib/util';
+import type { Routine } from '../../types';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_SETTINGS, useSettings, type Settings } from '../../state/settings';
 import { useBrowser } from '../../state/browser';
@@ -79,6 +81,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <div className="grid gap-4 overflow-y-auto p-5 md:grid-cols-2">
           <Section title="Persona" icon={User}>
             <Field label="Anrede"><input className="hud-input" value={s.userTitle} onChange={(e) => set('userTitle')(e.target.value || DEFAULT_SETTINGS.userTitle)} /></Field>
+            <Field label="Ihr Name" hint="Wird als Absender in E-Mail-Entwürfen verwendet."><input className="hud-input" value={s.userName} onChange={(e) => set('userName')(e.target.value)} /></Field>
             <Field label="Standort für Wetter"><input className="hud-input" value={s.city} onChange={(e) => set('city')(e.target.value)} onBlur={(e) => !e.target.value && set('city')('Berlin')} /></Field>
           </Section>
 
@@ -135,6 +138,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <Toggle checked={s.reducedMotion} onChange={set('reducedMotion')} label="Bewegung reduzieren" description="Für Barrierefreiheit & schwache Hardware" />
           </Section>
 
+          <div className="md:col-span-2"><RoutinesEditor routines={s.routines} onChange={set('routines')} /></div>
+
           <Section title="Daten" icon={MapPin}>
             <p className="text-xs text-ice/50">Alle Daten (Termine, Aufgaben, Notizen, Chat) werden lokal im Browser gespeichert.</p>
             <button className="hud-btn mt-3 border-crit/40 text-crit" onClick={() => {
@@ -149,5 +154,32 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </footer>
       </motion.div>
     </motion.div>
+  );
+}
+
+/** Automated browser routines: open a set of pages and optionally speak a briefing. Triggered by voice. */
+function RoutinesEditor({ routines, onChange }: { routines: Routine[]; onChange: (r: Routine[]) => void }) {
+  const patch = (id: string, p: Partial<Routine>) => onChange(routines.map((r) => (r.id === id ? { ...r, ...p } : r)));
+  return (
+    <Section title="Routinen · automatisierte Abläufe" icon={Workflow}>
+      <p className="mb-3 text-xs text-ice/50">Starten per Sprache oder Text: „Starte {routines[0]?.name ?? 'Morgenroutine'}“. Öffnet die Seiten als Tabs und liest auf Wunsch ein Briefing (Wetter, Termine, Aufgaben) vor.</p>
+      <div className="space-y-3">
+        {routines.map((r) => (
+          <div key={r.id} className="grid gap-2 rounded-lg border border-cyan-hud/10 p-3 sm:grid-cols-[180px_1fr_auto]">
+            <input className="hud-input h-8 py-1 text-xs" value={r.name} onChange={(e) => patch(r.id, { name: e.target.value })} aria-label="Name der Routine" />
+            <textarea className="hud-input min-h-8 resize-y py-1 font-mono text-[11px]" rows={Math.max(1, r.urls.length)} placeholder="Eine URL pro Zeile"
+              defaultValue={r.urls.join('\n')} aria-label={`Seiten für ${r.name}`}
+              onBlur={(e) => patch(r.id, { urls: e.target.value.split(/\s+/).map((u) => u.trim()).filter((u) => /^https?:\/\//i.test(u)) })} />
+            <div className="flex items-start gap-2">
+              <label className="flex items-center gap-1.5 text-[11px] text-ice/60">
+                <input type="checkbox" checked={r.briefing} onChange={(e) => patch(r.id, { briefing: e.target.checked })} className="accent-[#00D9FF]" /> Briefing
+              </label>
+              <button className="hud-icon-btn h-7 w-7" onClick={() => onChange(routines.filter((x) => x.id !== r.id))} aria-label={`${r.name} löschen`}><Trash2 className="h-3 w-3" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="hud-btn mt-3" onClick={() => onChange([...routines, { id: uid(), name: 'Neue Routine', urls: [], briefing: true }])}><Plus className="h-3 w-3" /> Routine hinzufügen</button>
+    </Section>
   );
 }

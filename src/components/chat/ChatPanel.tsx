@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bot, Mic, MicOff, Send, Square, Trash2, User, Volume2, X } from 'lucide-react';
+import { Bot, Copy, FileSearch, FileText, Languages, Link2, Mail, Mic, MicOff, Paperclip, Search, Send, Sparkles, Square, Trash2, User, Volume2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Assistant } from '../../hooks/useAssistant';
 import { cx, fmtTime } from '../../lib/util';
 import { Panel } from '../ui/Panel';
+import { useCommands } from '../../state/commands';
+import { currentUrl, useBrowser } from '../../state/browser';
+import { hostOf } from '../../lib/util';
 
-const SUGGESTIONS = ['Was steht heute an?', 'Wie ist das Wetter?', 'Öffne Wikipedia', 'Suche nach künstlicher Intelligenz', 'Neue Aufgabe: Anzug polieren'];
+const SUGGESTIONS = ['Was steht heute an?', 'Wie ist das Wetter?', 'Starte Morgenroutine', 'Recherchiere Festkörperbatterien', 'Öffne Wikipedia', 'Neue Aufgabe: Anzug polieren'];
 
 export function ChatPanel({ assistant, className }: { assistant: Assistant; className?: string }) {
   const { messages, state, interim, listening, send, cancel, clear, removeMessage, toggleListening, say } = assistant;
@@ -14,6 +17,17 @@ export function ChatPanel({ assistant, className }: { assistant: Assistant; clas
   const scroller = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = state === 'thinking';
+  const commands = useCommands();
+  const browser = useBrowser();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pageOpen = !currentUrl(browser.active).startsWith('jarvis://');
+  const [copied, setCopied] = useState<string | null>(null);
+
+  /** Skills that take the typed text as their parameter consume the draft. */
+  const skillWithDraft = (skill: 'research' | 'email') => {
+    commands.skill(skill, draft.trim() || undefined);
+    if (draft.trim()) setDraft('');
+  };
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
@@ -71,6 +85,26 @@ export function ChatPanel({ assistant, className }: { assistant: Assistant; clas
                 <div className={cx('inline-block whitespace-pre-wrap rounded-xl px-3 py-2 text-left text-[13px] leading-relaxed',
                   m.role === 'user' ? 'rounded-tr-sm bg-ice/[0.07] text-ice' : m.error ? 'rounded-tl-sm border border-crit/30 bg-crit/10 text-ice' : 'rounded-tl-sm border border-cyan-hud/15 bg-cyan-hud/[0.05] text-ice/90')}>
                   {m.content}
+                  {m.meta?.kind === 'email' && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-cyan-hud/10 pt-2">
+                      <a className="hud-btn py-1 text-[11px]" href={`mailto:${encodeURIComponent(m.meta.to)}?subject=${encodeURIComponent(m.meta.subject)}&body=${encodeURIComponent(m.meta.body)}`}>
+                        <Mail className="h-3 w-3" /> In Mail-App öffnen
+                      </a>
+                      <button className="hud-btn py-1 text-[11px]" onClick={() => { navigator.clipboard?.writeText(`${m.meta!.subject}\n\n${m.meta!.body}`); setCopied(m.id); setTimeout(() => setCopied(null), 1500); }}>
+                        <Copy className="h-3 w-3" /> {copied === m.id ? 'Kopiert' : 'Kopieren'}
+                      </button>
+                    </div>
+                  )}
+                  {!!m.sources?.length && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-cyan-hud/10 pt-2" aria-label="Quellen">
+                      {m.sources.map((src, i) => (
+                        <button key={src.url} onClick={() => browser.navigate(src.url, { newTab: true })} title={src.url}
+                          className="flex max-w-[220px] items-center gap-1 rounded-full border border-cyan-hud/20 bg-void/40 px-2 py-0.5 text-[10px] text-cyan-hud/90 hover:border-cyan-hud/60">
+                          <Link2 className="h-2.5 w-2.5 shrink-0" /><span className="font-mono text-ice/40">{i + 1}</span><span className="truncate">{src.title || hostOf(src.url)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className={cx('mt-1 flex items-center gap-2 font-mono text-[10px] text-ice/30', m.role === 'user' && 'justify-end')}>
                   <time dateTime={new Date(m.timestamp).toISOString()}>{fmtTime(m.timestamp, 'de-DE', true)}</time>
@@ -106,6 +140,17 @@ export function ChatPanel({ assistant, className }: { assistant: Assistant; clas
       )}
 
       <div className="border-t border-cyan-hud/10 p-3">
+        <div className="mb-2 flex gap-1 overflow-x-auto" role="toolbar" aria-label="KI-Fähigkeiten">
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={!pageOpen || busy} onClick={() => commands.skill('summarize')} title="Aktive Seite zusammenfassen"><FileText className="h-3 w-3" /> Zusammenfassen</button>
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={!pageOpen || busy} onClick={() => commands.skill('translate', 'Deutsch')} title="Aktive Seite ins Deutsche übersetzen"><Languages className="h-3 w-3" /> Übersetzen</button>
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={!pageOpen || busy} onClick={() => commands.skill('analyze')} title="Aktive Seite analysieren"><FileSearch className="h-3 w-3" /> Analysieren</button>
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={busy} onClick={() => skillWithDraft('research')} title="Eingabetext als Recherche-Thema"><Search className="h-3 w-3" /> Recherche</button>
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={busy} onClick={() => skillWithDraft('email')} title="Eingabetext als E-Mail-Anliegen"><Mail className="h-3 w-3" /> E-Mail</button>
+          <button className="hud-btn shrink-0 py-1 text-[11px]" disabled={busy} onClick={() => fileRef.current?.click()} title="Datei analysieren (Text, CSV, JSON, PDF, Bild)"><Paperclip className="h-3 w-3" /> Datei</button>
+          <input ref={fileRef} type="file" className="hidden" accept=".txt,.md,.csv,.json,.log,.xml,.html,.pdf,image/*,text/*"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) commands.analyzeFile(f); e.target.value = ''; }} />
+          {!pageOpen && <span className="ml-1 flex shrink-0 items-center gap-1 text-[10px] text-ice/30"><Sparkles className="h-3 w-3" /> Seiten-Funktionen: erst Webseite öffnen</span>}
+        </div>
         {listening && (
           <div className="mb-2 flex items-center gap-2 font-mono text-[11px] text-teal-hud" aria-live="assertive">
             <span className="blink h-1.5 w-1.5 rounded-full bg-teal-hud" /> {interim || 'Ich höre zu …'}
@@ -126,7 +171,9 @@ export function ChatPanel({ assistant, className }: { assistant: Assistant; clas
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
             rows={1}
-            placeholder="Befehl oder Frage eingeben …  ( / )"
+            placeholder="Befehl, Frage oder Recherche-Thema …  ( / )"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { const f = e.dataTransfer.files?.[0]; if (f) { e.preventDefault(); commands.analyzeFile(f); } }}
             className="hud-input max-h-28 min-h-10 resize-none rounded-xl py-2.5"
             aria-label="Nachricht an J.A.R.V.I.S."
           />

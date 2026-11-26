@@ -1,11 +1,15 @@
 import http from 'node:http';
 import { buildSystemPrompt, extractActions } from './prompt.mjs';
+import { fetchPage } from './page.mjs';
+import { SKILLS } from './skills.mjs';
 import { createClaudeProvider } from './providers/claude.mjs';
 import { createEchoProvider } from './providers/echo.mjs';
 
 /**
  * J.A.R.V.I.S. backend — model-agnostic chat gateway.
  *   POST /api/chat   { messages:[{role,content}], context } → { text, actions, provider }
+ *   POST /api/skill  { skill, input }        → { text, sources?, data? }   (siehe skills.mjs)
+ *   GET  /api/page?url=…                    → { url, title, text, … }      (öffentliche Seiten, SSRF-geschützt)
  *   GET  /api/health
  * Add more models by dropping a file into ./providers exporting { id, chat({system,messages,signal}) }.
  */
@@ -27,7 +31,7 @@ function cors(req, res) {
 
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
 
-async function readBody(req, limit = 256 * 1024) {
+async function readBody(req, limit = 20 * 1024 * 1024) {
   let size = 0; const chunks = [];
   for await (const c of req) { size += c.length; if (size > limit) throw Object.assign(new Error('Payload too large'), { status: 413 }); chunks.push(c); }
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
@@ -47,11 +51,27 @@ function sanitizeMessages(raw) {
 const server = http.createServer(async (req, res) => {
   cors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-  if (req.url === '/api/health') return json(res, 200, { ok: true, provider: provider.id });
-  if (req.url !== '/api/chat' || req.method !== 'POST') return json(res, 404, { error: 'not found' });
+  const { pathname, searchParams } = new URL(req.url, 'http://localhost');
+  if (pathname === '/api/health') return json(res, 200, { ok: true, provider: provider.id, skills: Object.keys(SKILLS), webSearch: !!provider.supportsWebSearch });
 
   const ac = new AbortController();
   res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+
+  if (pathname === '/api/page' && req.method === 'GET') {
+    try { return json(res, 200, await fetchPage(searchParams.get('url') ?? '', ac.signal)); }
+    catch (e) { return fail(res, e, ac); }
+  }
+  if (pathname === '/api/skill' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const skill = SKILLS[body.skill];
+      if (!skill) return json(res, 400, { error: `Unbekannte Fähigkeit: ${String(body.skill)}` });
+      const result = await skill({ provider, input: body.input ?? {}, signal: ac.signal });
+      return json(res, 200, { ...result, provider: provider.id });
+    } catch (e) { return fail(res, e, ac); }
+  }
+  if (pathname !== '/api/chat' || req.method !== 'POST') return json(res, 404, { error: 'not found' });
+
   try {
     const body = await readBody(req);
     const messages = sanitizeMessages(body.messages);
@@ -59,11 +79,14 @@ const server = http.createServer(async (req, res) => {
     const raw = await provider.chat({ system, messages, signal: ac.signal });
     const { text, actions } = extractActions(raw || '');
     json(res, 200, { text: text || '…', actions, provider: provider.id });
-  } catch (e) {
-    if (ac.signal.aborted) return;
-    console.error('[jarvis] chat error:', e?.status ?? '', e?.message);
-    json(res, e.status && e.status < 500 ? e.status : 502, { error: e.status === 401 ? 'Ungültiger API-Schlüssel' : e.message || 'Upstream error' });
-  }
+  } catch (e) { fail(res, e, ac); }
 });
+
+function fail(res, e, ac) {
+  if (ac.signal.aborted) return;
+  console.error('[jarvis] error:', e?.status ?? '', e?.message);
+  const status = e.status && e.status !== 401 ? e.status : 502;
+  json(res, status, { error: e.status === 401 ? 'Ungültiger API-Schlüssel' : e.message || 'Upstream error' });
+}
 
 server.listen(PORT, () => console.log(`[jarvis] backend on http://localhost:${PORT} · provider=${provider.id}`));

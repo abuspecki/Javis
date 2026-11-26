@@ -12,7 +12,7 @@ export interface Tab {
   /** bumps to force iframe reload */
   nonce: number;
 }
-export interface Bookmark { id: string; url: string; title: string }
+export interface Bookmark { id: string; url: string; title: string; category?: string }
 export interface HistoryEntry { id: string; url: string; title: string; time: number }
 
 export const NEWTAB = 'jarvis://newtab';
@@ -49,6 +49,7 @@ interface BrowserApi {
   reload: () => void;
   toggleBookmark: () => boolean;
   removeBookmark: (id: string) => void;
+  setBookmarkCategories: (map: Record<string, string>) => void;
   clearHistory: () => void;
   searchUrl: (q: string) => string;
 }
@@ -133,6 +134,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       return true;
     },
     removeBookmark: (id) => setBookmarks((b) => b.filter((x) => x.id !== id)),
+    setBookmarkCategories: (map) => setBookmarks((b) => b.map((x) => (map[x.id] ? { ...x, category: String(map[x.id]).slice(0, 40) } : x))),
     clearHistory: () => setHistory([]),
   }), [state.tabs, active, bookmarks, history, searchUrl, go, setState, record, setBookmarks, setHistory]);
 

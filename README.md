@@ -8,6 +8,7 @@ integrierter Browser, Systemmonitor und Informationsmodule. React · TypeScript 
 ```bash
 npm install
 npm run dev            # Frontend auf http://localhost:5173
+npm test               # Unit-Tests (Befehlserkennung, ICS, lokale KI-Fähigkeiten)
 ```
 
 Optional das KI-Backend (zweites Terminal):
@@ -41,11 +42,38 @@ echte CPU-/RAM-Werte (`chrome.system.*`), echte Downloads und echte Chrome-Tabs 
 | **Informationen** | Uhr, Wetter (Open-Meteo, ohne Key), Kalender, Erinnerungen (mit Benachrichtigung + Sprachausgabe), Nachrichten (Demo), Aufgaben, Notizen — einzeln ein-/ausblendbar |
 | **Ansichten** | Kommando · Browser · Fokus; Ultrawide = 4 Spalten, Laptop = 3, Tablet = gestapelt mit Schubladen |
 
+### KI-Fähigkeiten
+
+Erreichbar über die Leiste über dem Eingabefeld, per Sprache oder Text. Mit KI-Backend (Claude) arbeiten sie vollständig;
+ohne Backend greift jeweils eine echte lokale Variante.
+
+| Fähigkeit | Mit Backend (Claude) | Offline / ohne Backend |
+|---|---|---|
+| **Seite zusammenfassen** | Kernaussage + Stichpunkte | Extraktive Zusammenfassung (wichtigste Sätze) |
+| **Seite übersetzen** | Übersetzung direkt im Chat | Übergabe an Google Übersetzer |
+| **Seite analysieren** | Zweck, Zielgruppe, Tonalität, Glaubwürdigkeit, Tracking | Umfang, Lesezeit, Sprache, Schlüsselbegriffe, HTTPS |
+| **Recherche** | Websuche mit Quellenangaben | Wikipedia-Zusammenfassung mit Quellen |
+| **E-Mail-Assistent** | Vollständig formulierter Entwurf | Vorlage mit Empfänger und Betreff; beide → „In Mail-App öffnen“ |
+| **Lesezeichen sortieren** | KI-Kategorien | Regelbasierte Kategorien |
+| **Aufgabe zerlegen** (✨ an jeder Aufgabe) | Aufgabenspezifische Teilschritte | Allgemeine Schrittvorlage |
+| **Datei analysieren** (Text, CSV, JSON, PDF, Bilder; auch per Drag & Drop) | Inhaltliche Analyse, auch PDF/Bild | Statistik, Schlüsselbegriffe, Kernsätze, CSV-Spalten |
+
+Seiteninhalte liest J.A.R.V.I.S. als Extension direkt, im Web-Modus über `GET /api/page` des Backends
+(nur öffentliche Adressen; interne IPs, `file://` und Zugangsdaten in URLs werden abgewiesen).
+
+**Kalender:** Import und Export im ICS-Format (Google Kalender, Outlook, Apple Kalender) über die Knöpfe im Kalendermodul.
+
+**Routinen (automatisierte Browseraktionen):** In den Einstellungen konfigurierbar. „Starte Morgenroutine“ öffnet die
+hinterlegten Seiten als Tabs und liest ein Briefing aus Wetter, Terminen, Aufgaben und Erinnerungen vor.
+Vorkonfiguriert: Morgenroutine, Arbeitsbeginn, Feierabend.
+
 ### Sprachbefehle (Beispiele)
 
 „Hey Jarvis“ · „Öffne YouTube“ · „Suche nach künstlicher Intelligenz“ · „Wie ist das Wetter?“ ·
 „Zeige mir meine Termine“ · „Öffne einen neuen Tab“ · „Öffne einen privaten Tab“ · „Schließe den aktuellen Tab“ ·
-„Neue Aufgabe: …“ · „Notiz: …“ · „Erinnere mich in 10 Minuten an …“ · „Fokusmodus“ · „Zurück“ · „Neu laden“
+„Neue Aufgabe: …“ · „Notiz: …“ · „Erinnere mich in 10 Minuten an …“ · „Fokusmodus“ · „Zurück“ · „Neu laden“ ·
+„Fasse diese Seite zusammen“ · „Übersetze die Seite ins Englische“ · „Analysiere die Seite“ · „Recherchiere über …“ ·
+„Schreibe eine E-Mail an … wegen …“ · „Sortiere meine Lesezeichen“ · „Zerlege die Aufgabe …“ · „Exportiere den Kalender“ · „Starte Morgenroutine“
 
 ### Tastenkürzel
 
@@ -58,11 +86,12 @@ src/
   types.ts                     Domänentypen, inkl. JarvisAction (UI-Automationsbefehle)
   services/
     ai/                        AIProvider-Interface + DemoProvider (offline) + BackendProvider (HTTP)
+    skills/                    KI-Fähigkeiten: runSkill() → Backend oder lokale Implementierung
     commands/intentParser.ts   Deterministische Sprach-/Textbefehle → JarvisAction[]
     speech/                    Web Speech API (Erkennung + Synthese)
     browser/host.ts            HostAdapter: WebHost | ExtensionHost (chrome.tabs/downloads/system)
     system/metrics.ts          Metriken mit Quellenkennzeichnung
-    data/                      Wetter (Open-Meteo), Demo-Daten
+    data/                      Wetter (Open-Meteo), ICS-Import/Export, Demo-Daten
   state/                       Settings, Workspace (Kalender/Aufgaben/…), Browser-Tabs — localStorage
   hooks/useAssistant.ts        Orchestrierung: Befehl → KI → Aktionen → Sprachausgabe → Kernzustand
   components/                  core · chat · browser · system · info · layout · settings · ui
@@ -82,9 +111,11 @@ Das Modell kann UI-Aktionen über eine `ACTIONS: [...]`-Zeile anstoßen; das Bac
 und in `server/index.mjs` auswählen (`JARVIS_PROVIDER`). Standard ist Claude (`claude-opus-5-5`, Effort `low`
 für schnelle Sprachantworten; `JARVIS_MODEL` / `JARVIS_EFFORT` überschreiben).
 
-**Erweiterungspunkte** (vorbereitet): Seitenzusammenfassung/Übersetzung/Analyse (aktiver Tab steht im Kontext),
-E-Mail- und Kalender-Provider (Workspace-State ersetzen), Recherche (Backend-Tools), automatisierte Browseraktionen
-(`JarvisAction` erweitern), Electron/Tauri (neuen `HostAdapter` implementieren).
+**Backend-Fähigkeiten:** `POST /api/skill { skill, input } → { text, sources?, data? }`, definiert in `server/skills.mjs`.
+Eine neue Fähigkeit = ein Eintrag dort + ein `SkillId` im Frontend + (optional) eine lokale Variante in `src/services/skills/local.ts`.
+
+**Weitere Erweiterungspunkte:** echte Postfach-/Kalender-Synchronisation (OAuth-Provider im Backend, Workspace-State ersetzen),
+Electron/Tauri (neuen `HostAdapter` implementieren).
 
 ## Bekannte Grenzen
 
@@ -93,6 +124,9 @@ E-Mail- und Kalender-Provider (Workspace-State ersetzen), Recherche (Backend-Too
 - Echte CPU/RAM-Werte gibt es nur als Extension; im Web-Modus sind sie als DEMO/EST markiert.
 - Spracherkennung benötigt Chrome/Edge und Mikrofonfreigabe.
 - Nachrichten sind Demo-Schlagzeilen (keine schlüsselfreie, CORS-fähige News-API verfügbar).
+- Der E-Mail-Assistent erstellt Entwürfe und öffnet sie im Mailprogramm; er liest oder versendet keine Mails selbst.
+- Web-Recherche über das ganze Web und die inhaltliche PDF-/Bildanalyse benötigen den Claude-Provider (`ANTHROPIC_API_KEY`).
+- Die Extension fordert Lesezugriff auf alle Seiten (`<all_urls>`) an — nötig, um Seiten zusammenzufassen.
 
 ## Umgebungsvariablen (Backend)
 

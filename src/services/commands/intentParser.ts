@@ -85,6 +85,27 @@ export function parseIntent(raw: string, title = 'Sir'): Intent | null {
     }
   }
 
+  // ── AI skills ──
+  if (/(fasse|fass)\s+(diese|die|den|das)?\s*(seite|artikel|text|tab)\s+zusammen|^zusammenfassung|summari[sz]e (this|the) page/.test(q))
+    return { actions: [{ type: 'skill', skill: 'summarize' }], reply: '' };
+  const tr = q.match(/^übersetze?\s+(diese|die|den)?\s*(seite|artikel|text|tab)(\s+(ins|auf|nach|in)\s+(\w+))?/);
+  if (tr) return { actions: [{ type: 'skill', skill: 'translate', arg: tr[5] ? tr[5].charAt(0).toUpperCase() + tr[5].slice(1) : 'Deutsch' }], reply: '' };
+  if (/^analysiere?\s+(diese|die|den)?\s*(seite|webseite|website|artikel|tab)/.test(q))
+    return { actions: [{ type: 'skill', skill: 'analyze' }], reply: '' };
+  const rs = text.match(/^(recherchiere|recherche|research|finde heraus)\s+(über|zu|zum|zur|nach|about)?\s*(.+)$/i);
+  if (rs) return { actions: [{ type: 'skill', skill: 'research', arg: rs[3].replace(/[.!?]+$/, '') }], reply: '' };
+  if (/^(schreib(e)?|verfasse|entwirf|formuliere)\s+(mir\s+)?(eine|ein)\s+(e-?mail|mail|nachricht)/.test(q))
+    return { actions: [{ type: 'skill', skill: 'email', arg: text }], reply: '' };
+  if (/(sortiere|ordne|kategorisiere|organisiere)\s+(meine\s+|die\s+)?lesezeichen/.test(q))
+    return { actions: [{ type: 'skill', skill: 'bookmarks' }], reply: '' };
+  const bd = text.match(/^(zerlege|plane|unterteile)\s+(die\s+)?(aufgabe\s+)?[„"]?(.+?)[“"]?(\s+in\s+(teil)?schritte)?$/i);
+  if (bd && /aufgabe|schritte/i.test(text)) return { actions: [{ type: 'skill', skill: 'breakdown', arg: bd[4] }], reply: '' };
+  if (/(exportiere|export)\s+(den\s+|meinen\s+)?kalender/.test(q)) return { actions: [{ type: 'exportCalendar' }], reply: 'Kalender als ICS-Datei exportiert.' };
+
+  // ── Routines ──
+  const rt = q.match(/^(starte|start|führe aus|aktiviere)\s+(die\s+|den\s+|das\s+)?(.+?)(\s+routine)?$/);
+  if (rt && /routine|modus|ablauf|arbeitsbeginn|feierabend/.test(q)) return { actions: [{ type: 'routine', name: rt[3].replace(/routine$/, '').trim() }], reply: '' };
+
   // ── Modules ──
   if (/(wetter|weather)/.test(q))
     return { actions: [{ type: 'openModule', module: 'weather' }], reply: '', passthrough: true };

@@ -1,8 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Bell, CalendarDays, Check, Clock, CloudSun, Newspaper, NotebookPen, Plus, RefreshCw, Trash2, X, ListTodo, type LucideIcon,
+  Bell, CalendarDays, Check, Clock, CloudSun, Download, Newspaper, NotebookPen, Plus, RefreshCw, Sparkles, Trash2, Upload, X, ListTodo, type LucideIcon,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
+import { useCommands } from '../../state/commands';
+import { downloadText, eventsToIcs, parseIcs } from '../../services/data/ics';
 import type { InfoModuleId } from '../../types';
 import { useWorkspace } from '../../state/workspace';
 import { useClock } from '../../hooks/useClock';
@@ -136,9 +138,19 @@ function WeatherModule() {
 }
 
 function CalendarModule() {
-  const { events, addEvent, removeEvent } = useWorkspace();
+  const { events, addEvent, removeEvent, importEvents } = useWorkspace();
   const now = useClock(30_000);
   const [adding, setAdding] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const onImport = async (f: File) => {
+    try {
+      const parsed = parseIcs(await f.text());
+      const n = importEvents(parsed);
+      setStatus(parsed.length ? `${n} neue Termine importiert${parsed.length - n ? `, ${parsed.length - n} bereits vorhanden` : ''}.` : 'Keine Termine in der Datei gefunden.');
+    } catch { setStatus('Datei konnte nicht gelesen werden.'); }
+    setTimeout(() => setStatus(null), 5000);
+  };
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('15:00');
   const upcoming = events.filter((e) => e.end > now).sort((a, b) => a.start - b.start).slice(0, 6);
@@ -181,8 +193,14 @@ function CalendarModule() {
           <button className="hud-icon-btn h-7 w-7 shrink-0" aria-label="Termin speichern"><Check className="h-3 w-3" /></button>
         </form>
       ) : (
-        <button onClick={() => setAdding(true)} className="hud-btn mt-2 w-full py-1 text-[11px]"><Plus className="h-3 w-3" /> Termin heute</button>
+        <div className="mt-2 flex gap-1.5">
+          <button onClick={() => setAdding(true)} className="hud-btn flex-1 py-1 text-[11px]"><Plus className="h-3 w-3" /> Termin heute</button>
+          <button onClick={() => fileRef.current?.click()} className="hud-icon-btn h-[26px] w-[26px]" aria-label="Kalender importieren (.ics)" title="Importieren (.ics aus Google/Outlook/Apple)"><Upload className="h-3 w-3" /></button>
+          <button onClick={() => downloadText('jarvis-kalender.ics', eventsToIcs(events))} className="hud-icon-btn h-[26px] w-[26px]" aria-label="Kalender exportieren (.ics)" title="Exportieren (.ics)"><Download className="h-3 w-3" /></button>
+          <input ref={fileRef} type="file" accept=".ics,text/calendar" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = ''; }} />
+        </div>
       )}
+      {status && <p className="mt-1.5 text-[11px] text-teal-hud" role="status">{status}</p>}
     </div>
   );
 }
@@ -238,6 +256,7 @@ function NewsModule() {
 
 function TasksModule() {
   const { tasks, addTask, toggleTask, removeTask } = useWorkspace();
+  const { skill } = useCommands();
   const [text, setText] = useState('');
   const open = tasks.filter((t) => !t.done).length;
   return (
@@ -256,6 +275,7 @@ function TasksModule() {
               {t.done && <Check className="h-2.5 w-2.5 text-teal-hud" />}
             </button>
             <span className={cx('flex-1', t.done ? 'text-ice/30 line-through' : 'text-ice/85')}>{t.text}</span>
+            {!t.done && <button onClick={() => skill('breakdown', t.text)} className="text-ice/20 opacity-0 hover:text-cyan-hud group-hover:opacity-100 focus:opacity-100" aria-label={`„${t.text}“ in Teilschritte zerlegen`} title="In Teilschritte zerlegen"><Sparkles className="h-3 w-3" /></button>}
             <button onClick={() => removeTask(t.id)} className="text-ice/20 opacity-0 hover:text-crit group-hover:opacity-100 focus:opacity-100" aria-label="Aufgabe löschen"><Trash2 className="h-3 w-3" /></button>
           </li>
         ))}
