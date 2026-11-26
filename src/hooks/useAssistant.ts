@@ -15,7 +15,7 @@ const MIC_ERRORS: Record<string, string> = {
   'service-not-allowed': 'Spracherkennung ist in diesem Kontext nicht erlaubt.',
   'audio-capture': 'Kein Mikrofon gefunden.',
   network: 'Spracherkennung benötigt eine Internetverbindung.',
-  'not-supported': 'Dieser Browser unterstützt keine Spracherkennung. Bitte verwenden Sie Chrome oder Edge.',
+  'not-supported': 'Dieser Browser unterstützt keine Spracherkennung. Bitte Chrome, Edge oder Safari verwenden — auf dem iPad ggf. die Diktierfunktion der Tastatur (Mikrofon-Taste).',
 };
 
 const welcome = (title: string): ChatMessage => ({
@@ -38,7 +38,10 @@ export function useAssistant(opts: { execute: (a: JarvisAction[]) => void; getCo
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
-  const provider = useMemo(() => createProvider(settings.provider, settings.backendUrl), [settings.provider, settings.backendUrl]);
+  const provider = useMemo(
+    () => createProvider({ provider: settings.provider, backendUrl: settings.backendUrl, apiKey: settings.apiKey, model: settings.model }),
+    [settings.provider, settings.backendUrl, settings.apiKey, settings.model],
+  );
 
   const push = useCallback((m: Omit<ChatMessage, 'id' | 'timestamp'>) => {
     setMessages((prev) => [...prev, { ...m, id: uid(), timestamp: Date.now() }].slice(-200));
@@ -110,7 +113,8 @@ export function useAssistant(opts: { execute: (a: JarvisAction[]) => void; getCo
       say(res.text);
     } catch (e) {
       if ((e as Error).name === 'AbortError') { setState('idle'); return; }
-      const msg = `Verbindung zum KI-Kern fehlgeschlagen: ${(e as Error).message}. Ich bleibe im lokalen Modus verfügbar.`;
+      const reason = (e as Error).message.replace(/[.\s]+$/, '');
+      const msg = `Verbindung zum KI-Kern fehlgeschlagen: ${reason}. Befehle wie „Öffne …“ oder „Starte Morgenroutine“ funktionieren weiterhin.`;
       push({ role: 'assistant', content: msg, source: provider.id, error: true });
       flashError(msg);
     }
@@ -207,7 +211,7 @@ export function useAssistant(opts: { execute: (a: JarvisAction[]) => void; getCo
       return r;
     } catch (e) {
       if ((e as Error).name === 'AbortError') { setState('idle'); return null; }
-      const msg = `${label} fehlgeschlagen: ${(e as Error).message}`;
+      const msg = `${label} fehlgeschlagen: ${(e as Error).message.replace(/[.\s]+$/, '')}.`;
       push({ role: 'assistant', content: msg, source: `skill:${skill}`, error: true });
       flashError(msg);
       return null;

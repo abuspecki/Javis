@@ -1,6 +1,7 @@
 import type { SkillId } from '../../types';
 import { isExtension } from '../browser/host';
 import * as local from './local';
+import { runDirectSkill } from '../ai/providers/directProvider';
 
 export interface SkillResult {
   text: string;
@@ -13,7 +14,7 @@ export interface SkillResult {
 
 export interface PageContent { url: string; title: string; text: string; description?: string }
 
-export interface SkillEnv { useBackend: boolean; backendUrl: string; sender: string; signal?: AbortSignal }
+export interface SkillEnv { mode: 'demo' | 'backend' | 'direct'; backendUrl: string; apiKey: string; model: string; sender: string; signal?: AbortSignal }
 
 export type SkillInput =
   | { skill: 'summarize' | 'analyze'; url: string }
@@ -66,7 +67,16 @@ export async function readPage(url: string, env: SkillEnv): Promise<PageContent>
 /** Single entry point for all skills: AI backend when configured, otherwise the offline implementation. */
 export async function runSkill(input: SkillInput, env: SkillEnv): Promise<SkillResult> {
   const { skill } = input;
-  if (env.useBackend) {
+  if (env.mode === 'direct') {
+    // As an extension we can read the page ourselves; otherwise Claude fetches it (web_fetch).
+    const { skill: _s, ...rest } = input; void _s;
+    if ((skill === 'summarize' || skill === 'analyze' || skill === 'translate') && isExtension) {
+      const page = await readPage(input.url, env);
+      return runDirectSkill(env.apiKey, env.model, skill, { ...rest, sender: env.sender }, env.signal, page);
+    }
+    return runDirectSkill(env.apiKey, env.model, skill, { ...rest, sender: env.sender }, env.signal);
+  }
+  if (env.mode === 'backend') {
     // The backend can read the page itself; in extension mode we send the text we already can read.
     if ((skill === 'summarize' || skill === 'analyze' || skill === 'translate') && isExtension) {
       const page = await readPage(input.url, env);

@@ -47,3 +47,20 @@ export function speak(text: string, o: SpeakOptions) {
 }
 
 export const stopSpeaking = () => { if (ttsSupported()) window.speechSynthesis.cancel(); };
+
+/**
+ * iOS/iPadOS only lets speech start from a user gesture. Speaking a silent utterance on the
+ * first tap "unlocks" the synthesizer so later answers (after async AI calls) are audible.
+ */
+export function unlockSpeechOnFirstGesture() {
+  if (!ttsSupported()) return;
+  const unlock = () => {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+}

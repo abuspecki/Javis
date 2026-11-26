@@ -129,8 +129,8 @@ function Shell() {
   const assistantRef = useRef(assistant); assistantRef.current = assistant;
 
   const env = useCallback((): SkillEnv => ({
-    useBackend: settings.provider === 'backend', backendUrl: settings.backendUrl, sender: settings.userName,
-  }), [settings.provider, settings.backendUrl, settings.userName]);
+    mode: settings.provider, backendUrl: settings.backendUrl, apiKey: settings.apiKey, model: settings.model, sender: settings.userName,
+  }), [settings.provider, settings.backendUrl, settings.apiKey, settings.model, settings.userName]);
 
   /** Applies structured skill results to the workspace (categories, sub-tasks). */
   const applyResult = useCallback((r: SkillResult | null) => {
@@ -244,7 +244,7 @@ function Shell() {
 
   return (
     <CommandsContext.Provider value={commands}>
-    <div className={cx('hud-backdrop flex h-full flex-col', settings.scanlines && 'scanlines', settings.glitch && !reduced && 'glitch-on', reduced && 'reduced-motion')}>
+    <div className={cx('hud-backdrop safe-area flex h-full flex-col', settings.scanlines && 'scanlines', settings.glitch && !reduced && 'glitch-on', reduced && 'reduced-motion')}>
       {settings.scanlines && !reduced && <div className="scan-sweep" aria-hidden />}
       <a href="#chat-input" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2">Zum Chat springen</a>
       <TopBar

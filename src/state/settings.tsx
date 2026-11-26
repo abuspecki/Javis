@@ -14,6 +14,9 @@ export interface Settings {
   wakeWord: boolean;
   provider: ProviderId;
   backendUrl: string;
+  /** Only for provider 'direct'. Stored on this device only. */
+  apiKey: string;
+  model: string;
   city: string;
   searchEngine: 'jarvis' | 'google' | 'duckduckgo' | 'bing';
   scanlines: boolean;
@@ -33,6 +36,8 @@ export const DEFAULT_SETTINGS: Settings = {
   wakeWord: false,
   provider: 'demo',
   backendUrl: '',
+  apiKey: '',
+  model: 'claude-opus-5-5',
   city: 'Berlin',
   searchEngine: 'jarvis',
   scanlines: true,

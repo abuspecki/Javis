@@ -171,7 +171,7 @@ export function ChatPanel({ assistant, className }: { assistant: Assistant; clas
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
             rows={1}
-            placeholder="Befehl, Frage oder Recherche-Thema …  ( / )"
+            placeholder="Frage oder Befehl …"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { const f = e.dataTransfer.files?.[0]; if (f) { e.preventDefault(); commands.analyzeFile(f); } }}
             className="hud-input max-h-28 min-h-10 resize-none rounded-xl py-2.5"

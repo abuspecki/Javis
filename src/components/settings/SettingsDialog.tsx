@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS, useSettings, type Settings } from '../../state/settin
 import { useBrowser } from '../../state/browser';
 import { listVoices, speak, ttsSupported } from '../../services/speech/synthesis';
 import { speechRecognitionSupported } from '../../services/speech/recognition';
-import { BackendProvider } from '../../services/ai/providers/backendProvider';
+import { createProvider, MODELS } from '../../services/ai';
 import { Toggle } from '../ui/Panel';
 
 function Section({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
@@ -52,10 +52,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     return () => { window.removeEventListener('keydown', onKey); prev?.focus(); };
   }, [onClose]);
 
-  const testBackend = async () => {
+  const [showKey, setShowKey] = useState(false);
+  const testConnection = async () => {
     setTestState('Verbinde …');
     try {
-      const res = await new BackendProvider(s.backendUrl).chat({
+      const res = await createProvider(s).chat({
         messages: [{ role: 'user', content: 'Statusbericht in einem Satz.' }],
         context: { now: Date.now(), locale: s.lang, userTitle: s.userTitle, events: [], tasks: [], reminders: [], weather: null },
       });
@@ -89,15 +90,38 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <Field label="KI-Anbieter">
               <select className="hud-input" value={s.provider} onChange={(e) => set('provider')(e.target.value as Settings['provider'])}>
                 <option value="demo">Lokale Persona (offline, ohne API)</option>
+                <option value="direct">Claude direkt (API-Schlüssel auf diesem Gerät) — für iPad</option>
                 <option value="backend">Backend-Server (Claude oder eigenes Modell)</option>
               </select>
             </Field>
+            {s.provider === 'direct' && (
+              <>
+                <Field label="Anthropic API-Schlüssel" hint="Erstellen unter console.anthropic.com → API Keys. Wird nur auf diesem Gerät gespeichert und nur an api.anthropic.com gesendet.">
+                  <div className="flex gap-1.5">
+                    <input className="hud-input font-mono text-xs" type={showKey ? 'text' : 'password'} autoComplete="off" autoCapitalize="off" spellCheck={false}
+                      placeholder="sk-ant-…" value={s.apiKey} onChange={(e) => set('apiKey')(e.target.value.trim())} />
+                    <button type="button" className="hud-btn shrink-0" onClick={() => setShowKey((v) => !v)}>{showKey ? 'Verbergen' : 'Zeigen'}</button>
+                  </div>
+                </Field>
+                <Field label="Modell">
+                  <select className="hud-input" value={s.model} onChange={(e) => set('model')(e.target.value)}>
+                    {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </Field>
+                <p className="text-[11px] leading-relaxed text-warn/90">
+                  Hinweis: Der Schlüssel liegt im Browser-Speicher dieses Geräts. Nutzen Sie ein eigenes Gerät und legen Sie in der Anthropic-Konsole ein monatliches Ausgabenlimit fest.
+                </p>
+                <button className="hud-btn mt-2" onClick={testConnection} disabled={!s.apiKey}>Verbindung testen</button>
+                {s.apiKey && <button className="hud-btn ml-1.5 mt-2" onClick={() => set('apiKey')('')}>Schlüssel löschen</button>}
+                {testState && <p className="mt-2 break-words font-mono text-[11px] text-ice/60">{testState}</p>}
+              </>
+            )}
             {s.provider === 'backend' && (
               <>
                 <Field label="Backend-URL" hint="Leer = gleicher Host (Dev-Proxy auf :8787). API-Schlüssel bleiben immer im Backend.">
                   <input className="hud-input font-mono text-xs" placeholder="http://localhost:8787" value={s.backendUrl} onChange={(e) => set('backendUrl')(e.target.value)} />
                 </Field>
-                <button className="hud-btn mt-1" onClick={testBackend}>Verbindung testen</button>
+                <button className="hud-btn mt-1" onClick={testConnection}>Verbindung testen</button>
                 {testState && <p className="mt-2 break-words font-mono text-[11px] text-ice/60">{testState}</p>}
               </>
             )}

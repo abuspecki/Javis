@@ -15,6 +15,7 @@ export function useAudioLevel() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => undefined); // Safari starts suspended
       const src = ctx.createMediaStreamSource(stream);
       const an = ctx.createAnalyser();
       an.fftSize = 128;

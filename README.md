@@ -3,7 +3,24 @@
 Futuristisches KI-Kontrollzentrum im Stil eines HUD: holografischer KI-Kern, Sprachsteuerung,
 integrierter Browser, Systemmonitor und Informationsmodule. React · TypeScript · Tailwind · Framer Motion · Recharts · Web Speech API.
 
-## Schnellstart
+## Auf dem iPad (oder jedem Tablet/Handy)
+
+J.A.R.V.I.S. läuft als installierbare Web-App — ohne Installation von Node.js oder Erweiterungen.
+
+1. In Safari öffnen: **https://abuspecki.github.io/Javis/**
+2. Teilen-Symbol (□↑) → **„Zum Home-Bildschirm“** → Hinzufügen. J.A.R.V.I.S. startet dann im Vollbild wie eine App und funktioniert auch offline.
+3. Für echte KI: Zahnrad → **KI-Anbieter: „Claude direkt“** → API-Schlüssel von [console.anthropic.com](https://console.anthropic.com) eintragen → „Verbindung testen“.
+   Der Schlüssel bleibt auf dem Gerät und wird nur an `api.anthropic.com` gesendet. Webseiten liest Claude in diesem Modus selbst (Web-Fetch), Recherchen laufen über die Claude-Websuche.
+4. Sprache: Auf den Kern tippen und Mikrofon erlauben. Falls Safari die Spracherkennung in der Home-Bildschirm-App nicht anbietet,
+   funktioniert die Diktier-Taste der iPad-Tastatur im Eingabefeld immer.
+
+Bedienung auf dem iPad: Querformat = Kommando- bzw. Browser-Ansicht mit Spalten, Hochformat = gestapelt; Infomodule und Systemmonitor
+über die Knöpfe links/rechts oben. Webseiten, die das Einbetten verbieten, öffnen sich über „Extern öffnen“ in Safari.
+
+**Veröffentlichung (einmalig, für den Repo-Besitzer):** GitHub → Repository → *Settings* → *Pages* → *Source: „GitHub Actions“*.
+Danach baut `.github/workflows/deploy-pages.yml` bei jedem Push auf `main` automatisch (inkl. Tests) und veröffentlicht die App.
+
+## Schnellstart (Computer)
 
 ```bash
 npm install
@@ -85,7 +102,7 @@ Vorkonfiguriert: Morgenroutine, Arbeitsbeginn, Feierabend.
 src/
   types.ts                     Domänentypen, inkl. JarvisAction (UI-Automationsbefehle)
   services/
-    ai/                        AIProvider-Interface + DemoProvider (offline) + BackendProvider (HTTP)
+    ai/                        AIProvider-Interface + Demo (offline) + Backend (HTTP) + Direct (Claude-API im Browser)
     skills/                    KI-Fähigkeiten: runSkill() → Backend oder lokale Implementierung
     commands/intentParser.ts   Deterministische Sprach-/Textbefehle → JarvisAction[]
     speech/                    Web Speech API (Erkennung + Synthese)
@@ -95,6 +112,7 @@ src/
   state/                       Settings, Workspace (Kalender/Aufgaben/…), Browser-Tabs — localStorage
   hooks/useAssistant.ts        Orchestrierung: Befehl → KI → Aktionen → Sprachausgabe → Kernzustand
   components/                  core · chat · browser · system · info · layout · settings · ui
+shared/                        Isomorph (Server + Browser): Claude-Aufruf, Persona-Prompt, Fähigkeiten-Prompts
 server/                        Modellunabhängiges Backend (Node), Provider in server/providers/
 extension/                     Manifest V3 + Service Worker
 ```
@@ -122,7 +140,9 @@ Electron/Tauri (neuen `HostAdapter` implementieren).
 - Viele Websites (YouTube, Google, …) verbieten das Einbetten per `X-Frame-Options`. Das Panel zeigt dann
   „Extern öffnen“ bzw. als Extension „Als Chrome-Tab öffnen“.
 - Echte CPU/RAM-Werte gibt es nur als Extension; im Web-Modus sind sie als DEMO/EST markiert.
-- Spracherkennung benötigt Chrome/Edge und Mikrofonfreigabe.
+- Spracherkennung benötigt Chrome, Edge oder Safari und Mikrofonfreigabe.
+- „Claude direkt“ speichert den API-Schlüssel im Browser-Speicher des Geräts. Nur auf eigenen Geräten verwenden und in der
+  Anthropic-Konsole ein Ausgabenlimit setzen. Auf dem Computer ist der Backend-Server die sicherere Variante.
 - Nachrichten sind Demo-Schlagzeilen (keine schlüsselfreie, CORS-fähige News-API verfügbar).
 - Der E-Mail-Assistent erstellt Entwürfe und öffnet sie im Mailprogramm; er liest oder versendet keine Mails selbst.
 - Web-Recherche über das ganze Web und die inhaltliche PDF-/Bildanalyse benötigen den Claude-Provider (`ANTHROPIC_API_KEY`).

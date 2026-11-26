@@ -1,7 +1,7 @@
 import http from 'node:http';
-import { buildSystemPrompt, extractActions } from './prompt.mjs';
+import { buildSystemPrompt, extractActions } from '../shared/prompt.mjs';
 import { fetchPage } from './page.mjs';
-import { SKILLS } from './skills.mjs';
+import { runServerSkill, SKILL_IDS } from './skills.mjs';
 import { createClaudeProvider } from './providers/claude.mjs';
 import { createEchoProvider } from './providers/echo.mjs';
 
@@ -52,7 +52,7 @@ const server = http.createServer(async (req, res) => {
   cors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
-  if (pathname === '/api/health') return json(res, 200, { ok: true, provider: provider.id, skills: Object.keys(SKILLS), webSearch: !!provider.supportsWebSearch });
+  if (pathname === '/api/health') return json(res, 200, { ok: true, provider: provider.id, skills: SKILL_IDS, webSearch: !!provider.supportsWebSearch });
 
   const ac = new AbortController();
   res.on('close', () => { if (!res.writableEnded) ac.abort(); });
@@ -64,9 +64,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/skill' && req.method === 'POST') {
     try {
       const body = await readBody(req);
-      const skill = SKILLS[body.skill];
-      if (!skill) return json(res, 400, { error: `Unbekannte Fähigkeit: ${String(body.skill)}` });
-      const result = await skill({ provider, input: body.input ?? {}, signal: ac.signal });
+      const result = await runServerSkill(provider, body.skill, body.input ?? {}, ac.signal);
       return json(res, 200, { ...result, provider: provider.id });
     } catch (e) { return fail(res, e, ac); }
   }
