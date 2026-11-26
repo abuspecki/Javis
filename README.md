@@ -17,8 +17,9 @@ J.A.R.V.I.S. läuft als installierbare Web-App — ohne Installation von Node.js
 Bedienung auf dem iPad: Querformat = Kommando- bzw. Browser-Ansicht mit Spalten, Hochformat = gestapelt; Infomodule und Systemmonitor
 über die Knöpfe links/rechts oben. Webseiten, die das Einbetten verbieten, öffnen sich über „Extern öffnen“ in Safari.
 
-**Veröffentlichung (einmalig, für den Repo-Besitzer):** GitHub → Repository → *Settings* → *Pages* → *Source: „GitHub Actions“*.
-Danach baut `.github/workflows/deploy-pages.yml` bei jedem Push auf `main` automatisch (inkl. Tests) und veröffentlicht die App.
+**Veröffentlichung:** `.github/workflows/deploy-pages.yml` baut bei jedem Push auf `main` (inkl. Tests) und legt die App in den Branch `gh-pages`,
+den GitHub Pages unter `https://abuspecki.github.io/Javis/` ausliefert. Falls die Seite einmal nicht erscheint:
+*Settings → Pages → Source: „Deploy from a branch“ → Branch `gh-pages` / `(root)`*.
 
 ## Schnellstart (Computer)
 
