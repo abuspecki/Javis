@@ -2,6 +2,7 @@ import http from 'node:http';
 import { buildSystemPrompt, extractActions } from '../shared/prompt.mjs';
 import { fetchPage } from './page.mjs';
 import { runServerSkill, SKILL_IDS } from './skills.mjs';
+import { serveStatic } from './static.mjs';
 import { createClaudeProvider } from './providers/claude.mjs';
 import { createEchoProvider } from './providers/echo.mjs';
 
@@ -14,6 +15,8 @@ import { createEchoProvider } from './providers/echo.mjs';
  * Add more models by dropping a file into ./providers exporting { id, chat({system,messages,signal}) }.
  */
 const PORT = Number(process.env.PORT || 8787);
+// Only reachable from this computer unless explicitly opened up (e.g. HOST=0.0.0.0 in a container).
+const HOST = process.env.HOST || '127.0.0.1';
 const ORIGINS = (process.env.JARVIS_ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map((s) => s.trim());
 
 const providerName = process.env.JARVIS_PROVIDER || (process.env.ANTHROPIC_API_KEY ? 'claude' : 'echo');
@@ -68,6 +71,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...result, provider: provider.id });
     } catch (e) { return fail(res, e, ac); }
   }
+  if (!pathname.startsWith('/api/') && await serveStatic(req, res, pathname)) return;
   if (pathname !== '/api/chat' || req.method !== 'POST') return json(res, 404, { error: 'not found' });
 
   try {
@@ -87,4 +91,9 @@ function fail(res, e, ac) {
   json(res, status, { error: e.status === 401 ? 'Ungültiger API-Schlüssel' : e.message || 'Upstream error' });
 }
 
-server.listen(PORT, () => console.log(`[jarvis] backend on http://localhost:${PORT} · provider=${provider.id}`));
+server.listen(PORT, HOST, () => console.log(`[jarvis] J.A.R.V.I.S. läuft auf http://localhost:${PORT} · KI: ${provider.id}`));
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') console.error(`[jarvis] Port ${PORT} ist belegt — läuft J.A.R.V.I.S. schon? Sonst PORT=8788 setzen.`);
+  else console.error('[jarvis]', e.message);
+  process.exit(1);
+});

@@ -34,7 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceURI: '',
   speechRate: 1.02,
   wakeWord: false,
-  provider: 'demo',
+  // Served by the local Mac backend (npm start / "Jarvis starten.command") → use it by default.
+  provider: typeof location !== 'undefined' && location.port === '8787' ? 'backend' : 'demo',
   backendUrl: '',
   apiKey: '',
   model: 'claude-opus-5-5',

@@ -21,7 +21,21 @@ Bedienung auf dem iPad: Querformat = Kommando- bzw. Browser-Ansicht mit Spalten,
 den GitHub Pages unter `https://abuspecki.github.io/Javis/` ausliefert. Falls die Seite einmal nicht erscheint:
 *Settings → Pages → Source: „Deploy from a branch“ → Branch `gh-pages` / `(root)`*.
 
-## Schnellstart (Computer)
+## Auf dem Mac mit eigenem KI-Backend (empfohlen)
+
+Läuft komplett auf Ihrem Mac; der API-Schlüssel liegt nur in `server/.env` (Rechte 600) und der Server ist nur vom Mac selbst erreichbar.
+
+1. **Node.js** installieren: https://nodejs.org → „LTS“ → macOS-Installer.
+2. **Projekt holen** (Terminal, einmalig): `git clone https://github.com/abuspecki/Javis.git ~/Javis`
+3. Im Finder `~/Javis` öffnen und **„Jarvis starten.command“ doppelklicken**.
+   Beim ersten Mal: Anthropic-Schlüssel eingeben (unsichtbar), dann installiert und baut es alles und öffnet **http://localhost:8787**.
+   Die KI ist dort automatisch auf „Backend-Server“ gestellt.
+4. Beenden: Terminal-Fenster schließen. Schlüssel ändern: „Jarvis Schlüssel ändern.command“ doppelklicken.
+
+Falls macOS beim Doppelklick warnt: Rechtsklick → „Öffnen“ → „Öffnen“. Updates: `cd ~/Javis && git pull`, dann wieder doppelklicken.
+Tipp: Im Browser „Zum Dock hinzufügen“ (Safari) bzw. „App installieren“ (Chrome) für ein eigenes J.A.R.V.I.S.-Fenster.
+
+## Schnellstart (Entwicklung)
 
 ```bash
 npm install
