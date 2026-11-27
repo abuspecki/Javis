@@ -35,6 +35,20 @@ Läuft komplett auf Ihrem Mac; der API-Schlüssel liegt nur in `server/.env` (Re
 Falls macOS beim Doppelklick warnt: Rechtsklick → „Öffnen“ → „Öffnen“. Updates: `cd ~/Javis && git pull`, dann wieder doppelklicken.
 Tipp: Im Browser „Zum Dock hinzufügen“ (Safari) bzw. „App installieren“ (Chrome) für ein eigenes J.A.R.V.I.S.-Fenster.
 
+### Alle Webseiten im eingebauten Browser (Chrome-Erweiterung)
+
+Viele Seiten (YouTube, Google, …) verbieten das Einbetten. In einem normalen Browser-Tab lässt sich das nicht umgehen —
+als **Chrome-Erweiterung** entfernt J.A.R.V.I.S. diese Sperre jedoch, **nur für Seiten im eigenen Browser-Panel**; alle anderen
+Tabs bleiben unverändert geschützt.
+
+1. Einmal „Jarvis starten.command“ ausführen (baut auch die Erweiterung) — oder `npm run build:extension`.
+2. In Chrome `chrome://extensions` → **Entwicklermodus** an → **„Entpackte Erweiterung laden“** → Ordner `~/Javis/extension/dist`.
+3. Neuen Tab öffnen (oder `Cmd+Shift+J`). Die Erweiterung nutzt automatisch das lokale Backend (`http://localhost:8787`),
+   solange „Jarvis starten“ läuft. Nach Updates: in `chrome://extensions` beim Eintrag auf ↻ klicken.
+
+Grenzen: Manche Anmeldungen (z. B. Google-Konto, Online-Banking) blockieren eingebettete Fenster zusätzlich per Skript oder Cookie-Regeln —
+dafür „Als Chrome-Tab öffnen“. Seiten, die sich selbst zur Hauptseite machen wollen („Frame-Busting“), werden daran gehindert.
+
 ## Schnellstart (Entwicklung)
 
 ```bash
@@ -152,8 +166,8 @@ Electron/Tauri (neuen `HostAdapter` implementieren).
 
 ## Bekannte Grenzen
 
-- Viele Websites (YouTube, Google, …) verbieten das Einbetten per `X-Frame-Options`. Das Panel zeigt dann
-  „Extern öffnen“ bzw. als Extension „Als Chrome-Tab öffnen“.
+- Viele Websites (YouTube, Google, …) verbieten das Einbetten per `X-Frame-Options`/CSP. Im Browser/als Web-App zeigt das Panel dann
+  „Extern öffnen“; als Chrome-Erweiterung wird die Sperre für das Panel aufgehoben (siehe oben).
 - Echte CPU/RAM-Werte gibt es nur als Extension; im Web-Modus sind sie als DEMO/EST markiert.
 - Spracherkennung benötigt Chrome, Edge oder Safari und Mikrofonfreigabe.
 - „Claude direkt“ speichert den API-Schlüssel im Browser-Speicher des Geräts. Nur auf eigenen Geräten verwenden und in der

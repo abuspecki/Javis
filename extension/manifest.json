@@ -2,13 +2,18 @@
   "manifest_version": 3,
   "name": "J.A.R.V.I.S. Control Interface",
   "short_name": "J.A.R.V.I.S.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Futuristisches KI-Kontrollzentrum als neuer Tab: Sprachsteuerung, Seiten zusammenfassen/übersetzen/analysieren, Recherche, Routinen, Systemmonitor.",
   "icons": {
-    "128": "favicon.svg"
+    "16": "icons/icon-192.png",
+    "48": "icons/icon-192.png",
+    "128": "icons/icon-192.png"
   },
   "action": {
-    "default_title": "J.A.R.V.I.S. öffnen"
+    "default_title": "J.A.R.V.I.S. öffnen",
+    "default_icon": {
+      "128": "icons/icon-192.png"
+    }
   },
   "chrome_url_overrides": {
     "newtab": "index.html"
@@ -22,7 +27,9 @@
     "downloads",
     "system.cpu",
     "system.memory",
-    "storage"
+    "storage",
+    "declarativeNetRequest",
+    "webNavigation"
   ],
   "host_permissions": [
     "<all_urls>"

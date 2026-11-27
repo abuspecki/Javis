@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { currentUrl, NEWTAB, useBrowser } from '../../state/browser';
-import { host } from '../../services/browser/host';
+import { framingReady, host, onFrameNavigate } from '../../services/browser/host';
 import { cx, hostOf } from '../../lib/util';
 import { Panel } from '../ui/Panel';
 import { InternalPage } from './InternalPages';
@@ -14,6 +14,11 @@ export function BrowserPanel({ className, onNotify }: { className?: string; onNo
   const url = currentUrl(b.active);
   const [address, setAddress] = useState(url);
   const [loading, setLoading] = useState(false);
+  // In the extension, wait until embedding is unlocked so the first page doesn't hit the block.
+  const [framing, setFraming] = useState<boolean | null>(host.kind === 'extension' ? null : false);
+  useEffect(() => { framingReady.then(setFraming); }, []);
+  const syncFromFrame = b.syncFromFrame;
+  useEffect(() => onFrameNavigate(syncFromFrame), [syncFromFrame]);
   const internal = url.startsWith('jarvis://');
   const bookmarked = b.bookmarks.some((x) => x.url === url);
   const secure = url.startsWith('https://');
@@ -97,17 +102,23 @@ export function BrowserPanel({ className, onNotify }: { className?: string; onNo
           <InternalPage url={url} />
         ) : (
           <>
-            <iframe
-              key={`${b.active.id}-${b.active.index}-${b.active.nonce}`}
+            {framing !== null && <iframe
+              key={`${b.active.id}-${b.active.frameKey ?? `${b.active.index}-${b.active.nonce}`}`}
               src={url}
               title={b.active.title}
               className="h-full w-full bg-white"
               onLoad={() => setLoading(false)}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+              // no allow-top-navigation: pages must not navigate J.A.R.V.I.S. itself away ("frame busting")
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals allow-downloads allow-pointer-lock allow-storage-access-by-user-activation"
+              allow="fullscreen; autoplay; clipboard-write; encrypted-media; picture-in-picture"
               referrerPolicy="no-referrer"
-            />
+            />}
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 border-t border-cyan-hud/15 bg-panel/90 px-3 py-1.5 text-[11px] text-ice/60 backdrop-blur">
-              <span className="truncate">Leere Seite? <b className="text-ice/80">{hostOf(url)}</b> verbietet ggf. das Einbetten (X-Frame-Options).</span>
+              <span className="truncate">
+                {framing
+                  ? <>Einbetten freigeschaltet. Anmeldung klappt nicht oder Seite bleibt leer? Dann als echten Tab öffnen.</>
+                  : <>Leere Seite? <b className="text-ice/80">{hostOf(url)}</b> verbietet das Einbetten. Als Chrome-Erweiterung funktionieren alle Seiten.</>}
+              </span>
               <button className="hud-btn shrink-0 py-0.5 text-[11px]" onClick={() => host.openExternal(url, { private: b.active.private })}>
                 <ExternalLink className="h-3 w-3" /> {host.kind === 'extension' ? 'Als Chrome-Tab öffnen' : 'Extern öffnen'}
               </button>

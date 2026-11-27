@@ -11,6 +11,9 @@ export interface Tab {
   title: string;
   /** bumps to force iframe reload */
   nonce: number;
+  /** Identity of the page load the app started. Navigations *inside* the frame (link clicks) update
+   *  the URL/history but keep this, so the frame isn't reloaded. */
+  frameKey?: string;
 }
 export interface Bookmark { id: string; url: string; title: string; category?: string }
 export interface HistoryEntry { id: string; url: string; title: string; time: number }
@@ -49,6 +52,8 @@ interface BrowserApi {
   reload: () => void;
   toggleBookmark: () => boolean;
   removeBookmark: (id: string) => void;
+  /** The embedded page navigated by itself (link click) → reflect it in address bar + history. */
+  syncFromFrame: (url: string) => void;
   setBookmarkCategories: (map: Record<string, string>) => void;
   clearHistory: () => void;
   searchUrl: (q: string) => string;
@@ -95,7 +100,7 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
         return { tabs: [...s.tabs, t], activeId: t.id };
       }
       const tabs = s.tabs.map((t) => t.id !== cur.id ? t : {
-        ...t, history: [...t.history.slice(0, t.index + 1), url], index: t.index + 1, title: titleFor(url),
+        ...t, history: [...t.history.slice(0, t.index + 1), url], index: t.index + 1, title: titleFor(url), frameKey: uid(),
       });
       return { ...s, tabs };
     });
@@ -123,9 +128,17 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
       return { tabs, activeId };
     }),
     selectTab: (id) => setState((s) => ({ ...s, activeId: id })),
-    back: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId && t.index > 0 ? { ...t, index: t.index - 1, title: titleFor(t.history[t.index - 1]) } : t) })),
-    forward: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId && t.index < t.history.length - 1 ? { ...t, index: t.index + 1, title: titleFor(t.history[t.index + 1]) } : t) })),
-    reload: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId ? { ...t, nonce: t.nonce + 1 } : t) })),
+    back: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId && t.index > 0 ? { ...t, index: t.index - 1, title: titleFor(t.history[t.index - 1]), frameKey: uid() } : t) })),
+    forward: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId && t.index < t.history.length - 1 ? { ...t, index: t.index + 1, title: titleFor(t.history[t.index + 1]), frameKey: uid() } : t) })),
+    reload: () => setState((s) => ({ ...s, tabs: s.tabs.map((t) => t.id === s.activeId ? { ...t, nonce: t.nonce + 1, frameKey: uid() } : t) })),
+    syncFromFrame: (url) => setState((s) => {
+      const cur = s.tabs.find((t) => t.id === s.activeId);
+      if (!cur || !/^https?:/i.test(url) || currentUrl(cur) === url) return s;
+      record(url, cur.private);
+      return { ...s, tabs: s.tabs.map((t) => t.id !== cur.id ? t : {
+        ...t, history: [...t.history.slice(0, t.index + 1), url], index: t.index + 1, title: titleFor(url), // frameKey unchanged → no reload
+      }) };
+    }),
     toggleBookmark: () => {
       const url = currentUrl(active);
       const existing = bookmarks.find((b) => b.url === url);

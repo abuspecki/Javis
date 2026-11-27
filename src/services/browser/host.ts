@@ -83,3 +83,36 @@ class ExtensionHost implements HostAdapter {
 }
 
 export const host: HostAdapter = isExtension ? new ExtensionHost() : new WebHost();
+
+/**
+ * As an extension, the background worker removes the "don't embed me" headers for frames inside
+ * this tab — so every website can be shown in the browser panel. Resolves once the rule is active
+ * (or immediately outside the extension, where embedding stays restricted by the browser).
+ */
+export const framingReady: Promise<boolean> = isExtension
+  ? new Promise((resolve) => {
+      try {
+        chromeApi.runtime.sendMessage({ type: 'jarvis:allow-framing' }, (res: { ok?: boolean } | undefined) => {
+          void chromeApi.runtime.lastError; // swallow "no receiver" if the worker restarted
+          resolve(!!res?.ok);
+        });
+        setTimeout(() => resolve(false), 1500);
+      } catch { resolve(false); }
+    })
+  : Promise.resolve(false);
+
+/**
+ * Extension only: the background worker reports when the page embedded in this J.A.R.V.I.S. tab
+ * navigates by itself (e.g. a link click), so the address bar and history stay correct.
+ * Returns an unsubscribe function.
+ */
+export function onFrameNavigate(cb: (url: string) => void): () => void {
+  if (!isExtension) return () => undefined;
+  let myTabId: number | undefined;
+  chromeApi.tabs.getCurrent((t: { id?: number } | undefined) => { myTabId = t?.id; });
+  const listener = (msg: { type?: string; tabId?: number; url?: string }) => {
+    if (msg?.type === 'jarvis:frame-url' && msg.tabId === myTabId && typeof msg.url === 'string') cb(msg.url);
+  };
+  chromeApi.runtime.onMessage.addListener(listener);
+  return () => chromeApi.runtime.onMessage.removeListener(listener);
+}

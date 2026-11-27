@@ -34,9 +34,10 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceURI: '',
   speechRate: 1.02,
   wakeWord: false,
-  // Served by the local Mac backend (npm start / "Jarvis starten.command") → use it by default.
-  provider: typeof location !== 'undefined' && location.port === '8787' ? 'backend' : 'demo',
-  backendUrl: '',
+  // Served by the local Mac backend ("Jarvis starten.command") or running as the Chrome extension
+  // → use the local backend by default (the extension reaches it at http://localhost:8787).
+  provider: typeof location !== 'undefined' && (location.port === '8787' || location.protocol === 'chrome-extension:') ? 'backend' : 'demo',
+  backendUrl: typeof location !== 'undefined' && location.protocol === 'chrome-extension:' ? 'http://localhost:8787' : '',
   apiKey: '',
   model: 'claude-opus-5-5',
   city: 'Berlin',

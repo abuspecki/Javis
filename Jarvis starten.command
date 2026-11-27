@@ -38,9 +38,13 @@ if [ ! -d node_modules ]; then echo "  Installiere Komponenten (einmalig, ca. 1 
 if [ ! -d server/node_modules ]; then (cd server && npm install --no-audit --no-fund --loglevel=error) || pause_exit; fi
 
 if [ ! -f dist/index.html ] || [ -n "$(find src shared public index.html -newer dist/index.html -print -quit 2>/dev/null)" ]; then
-  echo "  Baue die Oberfläche …"
-  npm run build --silent >/dev/null 2>&1 || { echo "  Build fehlgeschlagen:"; npm run build; pause_exit; }
+  echo "  Baue die Oberfläche und die Chrome-Erweiterung …"
+  npm run build:extension --silent >/dev/null 2>&1 || { echo "  Build fehlgeschlagen:"; npm run build:extension; pause_exit; }
 fi
+
+echo "  Tipp: Für eingebettete Webseiten ohne Sperre die Chrome-Erweiterung laden:"
+echo "        chrome://extensions → Entwicklermodus → „Entpackte Erweiterung laden“ → $(pwd)/extension/dist"
+echo
 
 echo "  Starte … (dieses Fenster offen lassen, zum Beenden einfach schließen)"
 echo
